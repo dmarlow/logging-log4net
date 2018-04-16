@@ -138,114 +138,114 @@ method="run" file="Generator.java" line="94"/>
 		/// </remarks>
 		override protected void FormatXml(XmlWriter writer, LoggingEvent loggingEvent)
 		{
-			// Translate logging events for log4j
+		    // Translate logging events for log4j
 
-			// Translate hostname property
-			if (loggingEvent.LookupProperty(LoggingEvent.HostNameProperty) != null && 
-				loggingEvent.LookupProperty("log4jmachinename") == null)
+		    // Translate hostname property
+		    if (loggingEvent.LookupProperty(LoggingEvent.HostNameProperty) != null &&
+			loggingEvent.LookupProperty("log4jmachinename") == null)
+		    {
+			loggingEvent.GetProperties()["log4jmachinename"] = loggingEvent.LookupProperty(LoggingEvent.HostNameProperty);
+		    }
+
+		    // translate appdomain name
+		    if (loggingEvent.LookupProperty("log4japp") == null &&
+			loggingEvent.Domain != null &&
+			loggingEvent.Domain.Length > 0)
+		    {
+			loggingEvent.GetProperties()["log4japp"] = loggingEvent.Domain;
+		    }
+
+		    // translate identity name
+		    if (loggingEvent.Identity != null &&
+			loggingEvent.Identity.Length > 0 &&
+			loggingEvent.LookupProperty(LoggingEvent.IdentityProperty) == null)
+		    {
+			loggingEvent.GetProperties()[LoggingEvent.IdentityProperty] = loggingEvent.Identity;
+		    }
+
+		    // translate user name
+		    if (loggingEvent.UserName != null &&
+			loggingEvent.UserName.Length > 0 &&
+			loggingEvent.LookupProperty(LoggingEvent.UserNameProperty) == null)
+		    {
+			loggingEvent.GetProperties()[LoggingEvent.UserNameProperty] = loggingEvent.UserName;
+		    }
+
+		    // Write the start element
+		    writer.WriteStartElement("log4j", "event", "log4net");
+		    writer.WriteAttributeString("logger", loggingEvent.LoggerName);
+
+		    // Calculate the timestamp as the number of milliseconds since january 1970
+		    //
+		    // We must convert the TimeStamp to UTC before performing any mathematical
+		    // operations. This allows use to take into account discontinuities
+		    // caused by daylight savings time transitions.
+		    TimeSpan timeSince1970 = loggingEvent.TimeStampUtc - s_date1970;
+
+		    writer.WriteAttributeString("timestamp", XmlConvert.ToString((long)timeSince1970.TotalMilliseconds));
+		    writer.WriteAttributeString("level", loggingEvent.Level.DisplayName);
+		    writer.WriteAttributeString("thread", loggingEvent.ThreadName);
+
+		    // Append the message text
+		    writer.WriteStartElement("log4j", "message", "log4net");
+		    Transform.WriteEscapedXmlString(writer, loggingEvent.RenderedMessage, this.InvalidCharReplacement);
+		    writer.WriteEndElement();
+
+		    object ndcObj = loggingEvent.LookupProperty("NDC");
+		    if (ndcObj != null)
+		    {
+			string valueStr = loggingEvent.Repository.RendererMap.FindAndRender(ndcObj);
+
+			if (valueStr != null && valueStr.Length > 0)
 			{
-				loggingEvent.GetProperties()["log4jmachinename"] = loggingEvent.LookupProperty(LoggingEvent.HostNameProperty);
+			    // Append the NDC text
+			    writer.WriteStartElement("log4j", "NDC", "log4net");
+			    Transform.WriteEscapedXmlString(writer, valueStr, this.InvalidCharReplacement);
+			    writer.WriteEndElement();
 			}
+		    }
 
-			// translate appdomain name
-			if (loggingEvent.LookupProperty("log4japp") == null && 
-				loggingEvent.Domain != null && 
-				loggingEvent.Domain.Length > 0)
+		    // Append the properties text
+		    PropertiesDictionary properties = loggingEvent.GetProperties();
+		    if (properties.Count > 0)
+		    {
+			writer.WriteStartElement("log4j", "properties", "log4net");
+			foreach (System.Collections.DictionaryEntry entry in properties)
 			{
-				loggingEvent.GetProperties()["log4japp"] = loggingEvent.Domain;
+			    writer.WriteStartElement("log4j", "data", "log4net");
+			    writer.WriteAttributeString("name", (string)entry.Key);
+
+			    // Use an ObjectRenderer to convert the object to a string
+			    string valueStr = loggingEvent.Repository.RendererMap.FindAndRender(entry.Value);
+			    writer.WriteAttributeString("value", valueStr);
+
+			    writer.WriteEndElement();
 			}
-
-			// translate identity name
-			if (loggingEvent.Identity != null && 
-				loggingEvent.Identity.Length > 0 && 
-				loggingEvent.LookupProperty(LoggingEvent.IdentityProperty) == null)
-			{
-				loggingEvent.GetProperties()[LoggingEvent.IdentityProperty] = loggingEvent.Identity;
-			}
-
-			// translate user name
-			if (loggingEvent.UserName != null && 
-				loggingEvent.UserName.Length > 0 && 
-				loggingEvent.LookupProperty(LoggingEvent.UserNameProperty) == null)
-			{
-				loggingEvent.GetProperties()[LoggingEvent.UserNameProperty] = loggingEvent.UserName;
-			}
-
-			// Write the start element
-			writer.WriteStartElement("log4j:event");
-			writer.WriteAttributeString("logger", loggingEvent.LoggerName);
-
-			// Calculate the timestamp as the number of milliseconds since january 1970
-			// 
-			// We must convert the TimeStamp to UTC before performing any mathematical
-			// operations. This allows use to take into account discontinuities
-			// caused by daylight savings time transitions.
-			TimeSpan timeSince1970 = loggingEvent.TimeStampUtc - s_date1970;
-
-			writer.WriteAttributeString("timestamp", XmlConvert.ToString((long)timeSince1970.TotalMilliseconds));
-			writer.WriteAttributeString("level", loggingEvent.Level.DisplayName);
-			writer.WriteAttributeString("thread", loggingEvent.ThreadName);
-    
-			// Append the message text
-			writer.WriteStartElement("log4j:message");
-			Transform.WriteEscapedXmlString(writer, loggingEvent.RenderedMessage,this.InvalidCharReplacement);
 			writer.WriteEndElement();
+		    }
 
-			object ndcObj = loggingEvent.LookupProperty("NDC");
-			if (ndcObj != null)
-			{
-				string valueStr = loggingEvent.Repository.RendererMap.FindAndRender(ndcObj);
-
-				if (valueStr != null && valueStr.Length > 0)
-				{
-					// Append the NDC text
-					writer.WriteStartElement("log4j:NDC");
-					Transform.WriteEscapedXmlString(writer, valueStr,this.InvalidCharReplacement);
-					writer.WriteEndElement();
-				}
-			}
-
-			// Append the properties text
-			PropertiesDictionary properties = loggingEvent.GetProperties();
-			if (properties.Count > 0)
-			{
-				writer.WriteStartElement("log4j:properties");
-				foreach(System.Collections.DictionaryEntry entry in properties)
-				{
-					writer.WriteStartElement("log4j:data");
-					writer.WriteAttributeString("name", (string)entry.Key);
-
-					// Use an ObjectRenderer to convert the object to a string
-					string valueStr = loggingEvent.Repository.RendererMap.FindAndRender(entry.Value);
-					writer.WriteAttributeString("value", valueStr);
-
-					writer.WriteEndElement();
-				}
-				writer.WriteEndElement();
-			}
-
-			string exceptionStr = loggingEvent.GetExceptionString();
-			if (exceptionStr != null && exceptionStr.Length > 0)
-			{
-				// Append the stack trace line
-				writer.WriteStartElement("log4j:throwable");
-				Transform.WriteEscapedXmlString(writer, exceptionStr,this.InvalidCharReplacement);
-				writer.WriteEndElement();
-			}
-
-			if (LocationInfo)
-			{ 
-				LocationInfo locationInfo = loggingEvent.LocationInformation;
-
-				writer.WriteStartElement("log4j:locationInfo");
-				writer.WriteAttributeString("class", locationInfo.ClassName);
-				writer.WriteAttributeString("method", locationInfo.MethodName);
-				writer.WriteAttributeString("file", locationInfo.FileName);
-				writer.WriteAttributeString("line", locationInfo.LineNumber);
-				writer.WriteEndElement();
-			}
-
+		    string exceptionStr = loggingEvent.GetExceptionString();
+		    if (exceptionStr != null && exceptionStr.Length > 0)
+		    {
+			// Append the stack trace line
+			writer.WriteStartElement("log4j", "throwable", "log4net");
+			Transform.WriteEscapedXmlString(writer, exceptionStr, this.InvalidCharReplacement);
 			writer.WriteEndElement();
+		    }
+
+		    if (LocationInfo)
+		    {
+			LocationInfo locationInfo = loggingEvent.LocationInformation;
+
+			writer.WriteStartElement("log4j", "locationInfo", "log4net");
+			writer.WriteAttributeString("class", locationInfo.ClassName);
+			writer.WriteAttributeString("method", locationInfo.MethodName);
+			writer.WriteAttributeString("file", locationInfo.FileName);
+			writer.WriteAttributeString("line", locationInfo.LineNumber);
+			writer.WriteEndElement();
+		    }
+
+		    writer.WriteEndElement();
 		}
 	}
 }
